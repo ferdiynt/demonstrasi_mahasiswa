@@ -27,11 +27,11 @@ def load_all_resources():
 
     # GANTI DENGAN FILE ID ANDA DARI GOOGLE DRIVE
     file_ids = {
-        "rf": "GANTI_DENGAN_ID_RF_ANDA",
-        "svm": "GANTI_DENGAN_ID_SVM_ANDA",
-        "knn": "GANTI_DENGAN_ID_KNN_ANDA",
-        "bert_zip": "GANTI_DENGAN_ID_BERT_ZIP_ANDA",
-        "slang": "GANTI_DENGAN_ID_SLANG_ANDA"
+        "rf": "1hwozTv5xtMF_M86FIStd2dE7XYx01JIM",
+        "svm": "1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN",
+        "knn": "1y4BRHzMyMmk636n0hjJNLea_AozcQx_4",
+        "bert_zip": "1-b0eBSKQFIJeNklm9DPk-359em0qRY0F",
+        "slang": "12iZlpjKrf9bZttAIg17LEd2IkmLUDvcw"
     }
 
     # Path tujuan file
