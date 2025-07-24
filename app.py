@@ -109,3 +109,6 @@ def preprocess_text(text, normalisasi_dict, indo_stopwords, stemmer):
 def get_bert_embedding(text, tokenizer, model):
     inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True, max_length=128)
     with torch.no_grad():
+        outputs = model(**inputs)
+    cls_embedding = outputs.last_hidden_state[:, 0, :].squeeze().numpy()
+    return cls_embedding.reshape(1, -1)
