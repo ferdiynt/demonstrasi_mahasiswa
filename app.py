@@ -11,7 +11,7 @@ import torch
 from transformers import BertTokenizer, BertModel
 import gdown
 
-# --- Fungsi Load Model (dengan gdown dan cache) ---
+# --- Fungsi Load Model ---
 @st.cache_resource
 def load_all_resources():
     # Cek dan Unduh NLTK Stopwords
@@ -27,11 +27,11 @@ def load_all_resources():
 
     # GANTI DENGAN FILE ID ANDA DARI GOOGLE DRIVE
     file_ids = {
-        "rf": "1hwozTv5xtMF_M86FIStd2dE7XYx01JIM",
-        "svm": "1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN",
-        "knn": "1y4BRHzMyMmk636n0hjJNLea_AozcQx_4",
-        "bert_zip": "1-b0eBSKQFIJeNklm9DPk-359em0qRY0F",
-        "slang": "12iZlpjKrf9bZttAIg17LEd2IkmLUDvcw"
+        "rf": "GANTI_DENGAN_ID_RF_ANDA",
+        "svm": "GANTI_DENGAN_ID_SVM_ANDA",
+        "knn": "GANTI_DENGAN_ID_KNN_ANDA",
+        "bert_zip": "GANTI_DENGAN_ID_BERT_ZIP_ANDA",
+        "slang": "GANTI_DENGAN_ID_SLANG_ANDA"
     }
 
     # Path tujuan file
@@ -92,8 +92,13 @@ def preprocess_text(text, normalisasi_dict, indo_stopwords, stemmer):
         pattern = r'\b' + re.escape(slang) + r'\b'
         text = re.sub(pattern, baku, text, flags=re.IGNORECASE)
     tokens = text.split()
-    text = ' '.join([word for word in tokens if word not in indo_stopwords])
-    text = stemmer.stem(text)
+    # Menghapus stopwords
+    tokens = [word for word in tokens if word not in indo_stopwords]
+    
+    # === 1: STEMMING DILAKUKAN PER KATA ===
+    stemmed_tokens = [stemmer.stem(word) for word in tokens]
+    
+    text = ' '.join(stemmed_tokens)
     return text
 
 def get_bert_embedding(text, tokenizer, model):
@@ -119,9 +124,14 @@ if st.button("Analisis Sentimen", use_container_width=True):
         selected_model = models[model_choice]
         cleaned_text = preprocess_text(user_input, normalisasi_dict, indo_stopwords, stemmer)
         bert_features = get_bert_embedding(cleaned_text, tokenizer, bert_model)
-        prediction = selected_model.predict(bert_features)
         
-        sentiment = "Positive" if prediction[0] == 1 else "Negative"
+        # Prediksi (menghasilkan angka, misal: [0] atau [1])
+        prediction_index = selected_model.predict(bert_features) 
+        
+        # === 2: Mengambil nama kelas langsung dari model ===
+        # Model tahu urutannya, misal: ['Negative', 'Positive']
+        # Jika prediksi = [0], maka hasilnya adalah model.classes_[0] -> 'Negative'
+        sentiment = selected_model.classes_[prediction_index[0]]
         
         st.subheader(f"Hasil Analisis (Model: {model_choice})")
         if sentiment == "Positive":
@@ -131,5 +141,9 @@ if st.button("Analisis Sentimen", use_container_width=True):
         
         if hasattr(selected_model, 'predict_proba'):
             prediction_proba = selected_model.predict_proba(bert_features)
-            st.progress(prediction_proba[0][1])
-            st.write(f"Positif: `{prediction_proba[0][1]:.2%}` | Negatif: `{prediction_proba[0][0]:.2%}`")
+            # Cari tahu probabilitas untuk kelas "Positive"
+            positive_class_index = list(selected_model.classes_).index('Positive')
+            positive_proba = prediction_proba[0][positive_class_index]
+            
+            st.progress(positive_proba)
+            st.write(f"Positif: `{positive_proba:.2%}`")
