@@ -1,0 +1,7 @@
+venv/
+.venv/
+__pycache__/
+*.joblib
+*.zip
+bert_model_demo/
+data/
