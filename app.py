@@ -36,12 +36,12 @@ def download_file_from_google_drive(id, destination):
 # --- KONFIGURASI DAN LOAD MODEL ---
 @st.cache_resource
 def load_resources():
-    # GANTI DENGAN ID FILE GOOGLE DRIVE ANDA
+    # ID File dari Google Drive Anda
     drive_files = {
-        'svm_model_demo.joblib': 'GANTI_DENGAN_ID_SVM_ANDA',
-        'knn_model_demo.joblib': 'GANTI_DENGAN_ID_KNN_ANDA',
-        'rf_model_demo.joblib': 'GANTI_DENGAN_ID_RF_ANDA',
-        'bert_model_demo.zip': 'GANTI_DENGAN_ID_BERT_ZIP_ANDA'
+        'svm_model_demo.joblib': '1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN',
+        'knn_model_demo.joblib': '1y4BRHzMyMmk636n0hjJNLea_AozcQx_4',
+        'rf_model_demo.joblib': '1hwozTv5xtMF_M86FIStd2dE7XYx01JIM',
+        'bert_model_demo.zip': '1DNXDvX3I7r-mqspkdnCnx4IiLinjNWUl'  # <-- ID BERT SUDAH DIPERBARUI
     }
     
     bert_path = 'bert_model_demo'
@@ -53,7 +53,7 @@ def load_resources():
             download_file_from_google_drive(drive_files[zip_file_name], zip_file_name)
             with zipfile.ZipFile(zip_file_name, 'r') as zip_ref:
                 zip_ref.extractall('.')
-            os.remove(zip_file_name) # Hapus file zip setelah diekstrak
+            os.remove(zip_file_name)
 
     # Download model ML lainnya jika belum ada
     for filename, file_id in drive_files.items():
@@ -61,7 +61,6 @@ def load_resources():
              with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
                 download_file_from_google_drive(file_id, filename)
 
-    # Lanjutkan memuat resource seperti biasa
     try:
         nltk.data.find('corpora/stopwords')
     except nltk.downloader.DownloadError:
