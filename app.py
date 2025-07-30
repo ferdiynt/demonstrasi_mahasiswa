@@ -9,14 +9,25 @@ from transformers import BertTokenizer, BertModel
 import torch
 import os
 import requests
-import zipfile # Library untuk unzip
+import zipfile
 
-# --- FUNGSI UNTUK DOWNLOAD DARI GOOGLE DRIVE ---
+# --- FUNGSI DOWNLOAD DARI GOOGLE DRIVE (VERSI LEBIH CANGGIH) ---
 def download_file_from_google_drive(id, destination):
-    URL = f'https://drive.google.com/uc?export=download&id={id}'
+    URL = "https://docs.google.com/uc?export=download"
     session = requests.Session()
-    response = session.get(URL, stream=True)
+    response = session.get(URL, params={'id': id}, stream=True)
     
+    # Cek apakah ada halaman konfirmasi
+    token = None
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            token = value
+            break
+            
+    if token:
+        params = {'id': id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+
     total_size = int(response.headers.get('content-length', 0))
     block_size = 1024
     
@@ -33,20 +44,17 @@ def download_file_from_google_drive(id, destination):
 
     progress_bar.empty()
 
-# --- KONFIGURASI DAN LOAD MODEL ---
+# --- KONFIGURASI DAN LOAD MODEL (ID SUDAH BENAR) ---
 @st.cache_resource
 def load_resources():
-    # ID File dari Google Drive Anda
     drive_files = {
         'svm_model_demo.joblib': '1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN',
         'knn_model_demo.joblib': '1y4BRHzMyMmk636n0hjJNLea_AozcQx_4',
         'rf_model_demo.joblib': '1hwozTv5xtMF_M86FIStd2dE7XYx01JIM',
-        'bert_model_demo.zip': '1DNXDvX3I7r-mqspkdnCnx4IiLinjNWUl'  # <-- ID BERT SUDAH DIPERBARUI
+        'bert_model_demo.zip': '1DNXDvX3I7r-mqspkdnCnx4IiLinjNWUl'
     }
-    
     bert_path = 'bert_model_demo'
-
-    # Download dan unzip model BERT jika folder belum ada
+    
     if not os.path.exists(bert_path):
         zip_file_name = 'bert_model_demo.zip'
         with st.spinner(f'Mengunduh & mengekstrak {zip_file_name}... Ini hanya dilakukan sekali.'):
@@ -54,26 +62,21 @@ def load_resources():
             with zipfile.ZipFile(zip_file_name, 'r') as zip_ref:
                 zip_ref.extractall('.')
             os.remove(zip_file_name)
-
-    # Download model ML lainnya jika belum ada
+            
     for filename, file_id in drive_files.items():
         if filename.endswith('.joblib') and not os.path.exists(filename):
              with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
                 download_file_from_google_drive(file_id, filename)
 
-    try:
-        nltk.data.find('corpora/stopwords')
-    except nltk.downloader.DownloadError:
-        nltk.download('stopwords')
+    try: nltk.data.find('corpora/stopwords')
+    except nltk.downloader.DownloadError: nltk.download('stopwords')
 
     svm_model = joblib.load('svm_model_demo.joblib')
     knn_model = joblib.load('knn_model_demo.joblib')
     rf_model = joblib.load('rf_model_demo.joblib')
-
     tokenizer = BertTokenizer.from_pretrained(os.path.join(bert_path, 'tokenizer'))
     bert_model = BertModel.from_pretrained(os.path.join(bert_path, 'model'))
     bert_model.eval()
-
     factory = StemmerFactory()
     stemmer = factory.create_stemmer()
     indo_stopwords = set(nltk.corpus.stopwords.words('indonesian'))
@@ -86,41 +89,29 @@ def load_resources():
                 if len(parts) == 2:
                     normalisasi_dict[parts[0].strip()] = parts[1].strip()
 
-    return {
-        "svm": svm_model, "knn": knn_model, "rf": rf_model,
-        "tokenizer": tokenizer, "bert_model": bert_model, "stemmer": stemmer,
-        "stopwords": indo_stopwords, "slang_dict": normalisasi_dict
-    }
+    return { "svm": svm_model, "knn": knn_model, "rf": rf_model, "tokenizer": tokenizer, 
+             "bert_model": bert_model, "stemmer": stemmer, "stopwords": indo_stopwords, 
+             "slang_dict": normalisasi_dict }
 
 # --- FUNGSI PREPROCESSING & FITUR (TIDAK BERUBAH) ---
 def clean_text(text):
-    text = re.sub(r'http\S+|www.\S+', '', text)
-    text = re.sub(r'\\d+', '', text)
-    text = re.sub(r'[@#]\\w+|[^\\w\\s]|[^\\x00-\\x7F]+', '', text)
-    text = re.sub(r'[^a-zA-Z\\s]', ' ', text)
-    text = re.sub(r'\\s+', ' ', text).strip()
-    return text
-
+    text = re.sub(r'http\S+|www.\S+', '', text); text = re.sub(r'\\d+', '', text)
+    text = re.sub(r'[@#]\\w+|[^\\w\\s]|[^\\x00-\\x7F]+', '', text); text = re.sub(r'[^a-zA-Z\\s]', ' ', text)
+    text = re.sub(r'\\s+', ' ', text).strip(); return text
 def normalisasi_kata(text, slang_dict):
     if pd.isna(text): return text
     for slang, baku in slang_dict.items():
         text = re.sub(r'\\b' + re.escape(slang) + r'\\b', baku, text, flags=re.IGNORECASE)
     return text
-
 def remove_stopwords(text, stopwords):
     return ' '.join([word for word in text.split() if word not in stopwords])
-
 def stem_text(text, stemmer):
     return ' '.join([stemmer.stem(word) for word in text.split()])
-
 def preprocess_text(text, resources):
-    text = text.lower()
-    text = clean_text(text)
+    text = text.lower(); text = clean_text(text)
     text = normalisasi_kata(text, resources["slang_dict"])
     text = remove_stopwords(text, resources["stopwords"])
-    text = stem_text(text, resources["stemmer"])
-    return text
-
+    text = stem_text(text, resources["stemmer"]); return text
 def get_bert_embedding(text, tokenizer, model):
     inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True, max_length=128)
     with torch.no_grad():
