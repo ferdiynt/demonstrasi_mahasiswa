@@ -1,114 +1,171 @@
 import streamlit as st
-import os
-import joblib
-import zipfile
+import pandas as pd
+import numpy as np
 import re
-import string
 import nltk
+import joblib
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-from nltk.corpus import stopwords
-import torch
 from transformers import BertTokenizer, BertModel
-import gdown
+import torch
+import os
+import requests
+import zipfile # Library untuk unzip
 
-# --- Fungsi Load Resource (dengan gdown dan cache) ---
+# --- FUNGSI UNTUK DOWNLOAD DARI GOOGLE DRIVE ---
+def download_file_from_google_drive(id, destination):
+    URL = f'https://drive.google.com/uc?export=download&id={id}'
+    session = requests.Session()
+    response = session.get(URL, stream=True)
+    
+    total_size = int(response.headers.get('content-length', 0))
+    block_size = 1024
+    
+    progress_bar = st.progress(0, text=f"Mengunduh {os.path.basename(destination)}...")
+    
+    with open(destination, 'wb') as f:
+        bytes_downloaded = 0
+        for chunk in response.iter_content(block_size):
+            if chunk:
+                bytes_downloaded += len(chunk)
+                f.write(chunk)
+                progress_percentage = int((bytes_downloaded / total_size) * 100) if total_size > 0 else 0
+                progress_bar.progress(progress_percentage, text=f"Mengunduh {os.path.basename(destination)} ({progress_percentage}%)")
+
+    progress_bar.empty()
+
+# --- KONFIGURASI DAN LOAD MODEL ---
 @st.cache_resource
-def load_all_resources():
-    # Cek dan Unduh NLTK Stopwords
+def load_resources():
+    # GANTI DENGAN ID FILE GOOGLE DRIVE ANDA
+    drive_files = {
+        'svm_model_demo.joblib': 'GANTI_DENGAN_ID_SVM_ANDA',
+        'knn_model_demo.joblib': 'GANTI_DENGAN_ID_KNN_ANDA',
+        'rf_model_demo.joblib': 'GANTI_DENGAN_ID_RF_ANDA',
+        'bert_model_demo.zip': 'GANTI_DENGAN_ID_BERT_ZIP_ANDA'
+    }
+    
+    bert_path = 'bert_model_demo'
+
+    # Download dan unzip model BERT jika folder belum ada
+    if not os.path.exists(bert_path):
+        zip_file_name = 'bert_model_demo.zip'
+        with st.spinner(f'Mengunduh & mengekstrak {zip_file_name}... Ini hanya dilakukan sekali.'):
+            download_file_from_google_drive(drive_files[zip_file_name], zip_file_name)
+            with zipfile.ZipFile(zip_file_name, 'r') as zip_ref:
+                zip_ref.extractall('.')
+            os.remove(zip_file_name) # Hapus file zip setelah diekstrak
+
+    # Download model ML lainnya jika belum ada
+    for filename, file_id in drive_files.items():
+        if filename.endswith('.joblib') and not os.path.exists(filename):
+             with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
+                download_file_from_google_drive(file_id, filename)
+
+    # Lanjutkan memuat resource seperti biasa
     try:
         nltk.data.find('corpora/stopwords')
-    except LookupError:
+    except nltk.downloader.DownloadError:
         nltk.download('stopwords')
 
-    # Membuat direktori jika belum ada
-    os.makedirs('models', exist_ok=True)
-    os.makedirs('bert_model_demo', exist_ok=True)
-    os.makedirs('data', exist_ok=True)
+    svm_model = joblib.load('svm_model_demo.joblib')
+    knn_model = joblib.load('knn_model_demo.joblib')
+    rf_model = joblib.load('rf_model_demo.joblib')
 
-    # GANTI DENGAN FILE ID ANDA DARI GOOGLE DRIVE
-    file_ids = {
-        "rf": "1hwozTv5xtMF_M86FIStd2dE7XYx01JIM",
-        "svm": "1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN",
-        "knn": "1y4BRHzMyMmk636n0hjJNLea_AozcQx_4",
-        "bert_zip": "1-b0eBSKQFIJeNklm9DPk-359em0qRY0F",
-        "slang": "12iZlpjKrf9bZttAIg17LEd2IkmLUDvcw"
-    }
-
-    # Path tujuan file
-    paths = {
-        "rf": "models/rf_model_demo.joblib",
-        "svm": "models/svm_model_demo.joblib",
-        "knn": "models/knn_model_demo.joblib",
-        "bert_zip": "bert_model_demo.zip",
-        "bert_dir": "bert_model_demo",
-        "slang": "data/slang.txt"
-    }
-
-    # Download file jika belum ada menggunakan gdown
-    with st.spinner("Mempersiapkan model saat pertama kali dijalankan... Ini mungkin memakan waktu beberapa menit."):
-        if not os.path.exists(paths["rf"]): gdown.download(id=file_ids["rf"], output=paths["rf"], quiet=True)
-        if not os.path.exists(paths["svm"]): gdown.download(id=file_ids["svm"], output=paths["svm"], quiet=True)
-        if not os.path.exists(paths["knn"]): gdown.download(id=file_ids["knn"], output=paths["knn"], quiet=True)
-        
-        if not os.path.exists(os.path.join(paths["bert_dir"], "tokenizer")): 
-            gdown.download(id=file_ids["bert_zip"], output=paths["bert_zip"], quiet=True)
-            with zipfile.ZipFile(paths["bert_zip"], 'r') as zip_ref:
-                zip_ref.extractall()
-            os.remove(paths["bert_zip"])
-        
-        if not os.path.exists(paths["slang"]): gdown.download(id=file_ids["slang"], output=paths["slang"], quiet=True)
-
-    # Load semua model dan resource
-    models = {
-        'Random Forest': joblib.load(paths["rf"]),
-        'SVM': joblib.load(paths["svm"]),
-        'KNN': joblib.load(paths["knn"])
-    }
-    
-    tokenizer = BertTokenizer.from_pretrained(os.path.join(paths["bert_dir"], 'tokenizer'))
-    bert_model = BertModel.from_pretrained(os.path.join(paths["bert_dir"], 'model'))
-
-    normalisasi_dict = {}
-    with open(paths["slang"], "r", encoding="utf-8") as file:
-        for line in file:
-            if ":" in line:
-                f = line.strip().split(":")
-                normalisasi_dict[f[0].strip()] = f[1].strip()
-    
-    # Kustomisasi daftar stopwords
-    stopword_list = set(stopwords.words('indonesian'))
-    kata_penting_untuk_dikecualikan = ["sangat", "tidak", "kurang", "suka", "bantu", "penting", "benar"]
-    for kata in kata_penting_untuk_dikecualikan:
-        if kata in stopword_list:
-            stopword_list.remove(kata)
-    indo_stopwords = stopword_list
+    tokenizer = BertTokenizer.from_pretrained(os.path.join(bert_path, 'tokenizer'))
+    bert_model = BertModel.from_pretrained(os.path.join(bert_path, 'model'))
+    bert_model.eval()
 
     factory = StemmerFactory()
     stemmer = factory.create_stemmer()
+    indo_stopwords = set(nltk.corpus.stopwords.words('indonesian'))
+    
+    normalisasi_dict = {}
+    with open("slang.txt", "r", encoding="utf-8") as file:
+        for line in file:
+            if ":" in line:
+                parts = line.strip().split(":")
+                if len(parts) == 2:
+                    normalisasi_dict[parts[0].strip()] = parts[1].strip()
 
-    return models, tokenizer, bert_model, normalisasi_dict, indo_stopwords, stemmer
+    return {
+        "svm": svm_model, "knn": knn_model, "rf": rf_model,
+        "tokenizer": tokenizer, "bert_model": bert_model, "stemmer": stemmer,
+        "stopwords": indo_stopwords, "slang_dict": normalisasi_dict
+    }
 
-# --- Fungsi Preprocessing dan lainnya ---
-def preprocess_text(text, normalisasi_dict, indo_stopwords, stemmer):
-    text = text.lower()
+# --- FUNGSI PREPROCESSING & FITUR (TIDAK BERUBAH) ---
+def clean_text(text):
     text = re.sub(r'http\S+|www.\S+', '', text)
-    text = re.sub(r'[-+]?[0-9]+', '', text)
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    text = text.strip()
-    for slang, baku in normalisasi_dict.items():
-        pattern = r'\b' + re.escape(slang) + r'\b'
-        text = re.sub(pattern, baku, text, flags=re.IGNORECASE)
-    
-    tokens = text.split()
-    tokens = [word for word in tokens if word not in indo_stopwords]
-    
-    stemmed_tokens = [stemmer.stem(word) for word in tokens]
-    text = ' '.join(stemmed_tokens)
+    text = re.sub(r'\\d+', '', text)
+    text = re.sub(r'[@#]\\w+|[^\\w\\s]|[^\\x00-\\x7F]+', '', text)
+    text = re.sub(r'[^a-zA-Z\\s]', ' ', text)
+    text = re.sub(r'\\s+', ' ', text).strip()
+    return text
+
+def normalisasi_kata(text, slang_dict):
+    if pd.isna(text): return text
+    for slang, baku in slang_dict.items():
+        text = re.sub(r'\\b' + re.escape(slang) + r'\\b', baku, text, flags=re.IGNORECASE)
+    return text
+
+def remove_stopwords(text, stopwords):
+    return ' '.join([word for word in text.split() if word not in stopwords])
+
+def stem_text(text, stemmer):
+    return ' '.join([stemmer.stem(word) for word in text.split()])
+
+def preprocess_text(text, resources):
+    text = text.lower()
+    text = clean_text(text)
+    text = normalisasi_kata(text, resources["slang_dict"])
+    text = remove_stopwords(text, resources["stopwords"])
+    text = stem_text(text, resources["stemmer"])
     return text
 
 def get_bert_embedding(text, tokenizer, model):
     inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True, max_length=128)
     with torch.no_grad():
         outputs = model(**inputs)
-    cls_embedding = outputs.last_hidden_state[:, 0, :].squeeze().numpy()
-    return cls_embedding.reshape(1, -1)
+    return outputs.last_hidden_state[:, 0, :].squeeze().numpy().reshape(1, -1)
+
+# --- UI STREAMLIT ---
+st.set_page_config(page_title="Analisis Sentimen", layout="wide")
+st.title("🤖 Analisis Sentimen Teks Demo Mahasiswa")
+st.markdown("Aplikasi ini menggunakan model Machine Learning yang dilatih dengan fitur dari IndoBERT untuk menganalisis sentimen teks terkait demonstrasi mahasiswa.")
+
+try:
+    resources = load_resources()
+except Exception as e:
+    st.error(f"Gagal memuat model. Pastikan ID Google Drive sudah benar dan file dapat diakses oleh 'Siapa saja yang memiliki link'. Error: {e}")
+    st.stop()
+
+user_input = st.text_area("Masukkan teks untuk dianalisis di sini:", height=150, placeholder="Contoh: Aksi demo mahasiswa hari ini berjalan dengan damai dan tertib...")
+
+if st.button("Analisis Sentimen", type="primary"):
+    if user_input:
+        with st.spinner('Sedang memproses dan menganalisis teks...'):
+            preprocessed_text = preprocess_text(user_input, resources)
+            st.subheader("Teks Setelah Preprocessing:")
+            st.info(preprocessed_text)
+            
+            text_embedding = get_bert_embedding(preprocessed_text, resources["tokenizer"], resources["bert_model"])
+            
+            svm_pred = resources["svm"].predict(text_embedding)[0]
+            knn_pred = resources["knn"].predict(text_embedding)[0]
+            rf_pred = resources["rf"].predict(text_embedding)[0]
+            
+            st.subheader("Hasil Analisis Sentimen:")
+            col1, col2, col3 = st.columns(3)
+            
+            for col, model_name, pred in [(col1, "SVM", svm_pred), (col2, "KNN", knn_pred), (col3, "Random Forest", rf_pred)]:
+                with col:
+                    st.metric(label=model_name, value=pred)
+                    if pred == "Positive":
+                        st.success("Sentimen cenderung Positif 👍")
+                    else:
+                        st.error("Sentimen cenderung Negatif 👎")
+    else:
+        st.warning("Mohon masukkan teks untuk dianalisis.")
+
+st.sidebar.header("Tentang Aplikasi")
+st.sidebar.info("Aplikasi ini adalah implementasi dari notebook analisis sentimen. Model besar dihosting di Google Drive dan diunduh saat aplikasi pertama kali dijalankan.")
