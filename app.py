@@ -9,14 +9,14 @@ from transformers import BertTokenizer, BertModel
 import torch
 import os
 import zipfile
-import gdown # <-- Menggunakan library gdown
+import gdown
 
-# --- FUNGSI DOWNLOAD BARU MENGGUNAKAN GDOWN ---
+# --- FUNGSI DOWNLOAD BARU MENGGUNAKAN GDOWN (TIDAK BERUBAH) ---
 def download_file_from_google_drive(id, destination):
     url = f'https://drive.google.com/uc?id={id}'
     gdown.download(url, destination, quiet=False)
 
-# --- KONFIGURASI DAN LOAD MODEL (TIDAK BERUBAH) ---
+# --- KONFIGURASI DAN LOAD MODEL (DENGAN PERBAIKAN NLTK) ---
 @st.cache_resource
 def load_resources():
     # ID File dari Google Drive Anda
@@ -44,8 +44,12 @@ def load_resources():
              with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
                 download_file_from_google_drive(file_id, filename)
 
-    try: nltk.data.find('corpora/stopwords')
-    except nltk.downloader.DownloadError: nltk.download('stopwords')
+    # --- PERBAIKAN BAGIAN NLTK ---
+    try:
+        nltk.data.find('corpora/stopwords.zip')
+    except LookupError:
+        nltk.download('stopwords')
+    # -----------------------------
 
     svm_model = joblib.load('svm_model_demo.joblib')
     knn_model = joblib.load('knn_model_demo.joblib')
