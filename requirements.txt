@@ -1,10 +1,11 @@
 streamlit
 pandas
-torch
-transformers
+numpy
 scikit-learn
-joblib
 nltk
 Sastrawi
-imblearn
+transformers
+torch
+joblib
+requests
 gdown

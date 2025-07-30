@@ -8,53 +8,28 @@ from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from transformers import BertTokenizer, BertModel
 import torch
 import os
-import requests
 import zipfile
+import gdown # <-- Menggunakan library gdown
 
-# --- FUNGSI DOWNLOAD DARI GOOGLE DRIVE (VERSI LEBIH CANGGIH) ---
+# --- FUNGSI DOWNLOAD BARU MENGGUNAKAN GDOWN ---
 def download_file_from_google_drive(id, destination):
-    URL = "https://docs.google.com/uc?export=download"
-    session = requests.Session()
-    response = session.get(URL, params={'id': id}, stream=True)
-    
-    # Cek apakah ada halaman konfirmasi
-    token = None
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            token = value
-            break
-            
-    if token:
-        params = {'id': id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
+    url = f'https://drive.google.com/uc?id={id}'
+    gdown.download(url, destination, quiet=False)
 
-    total_size = int(response.headers.get('content-length', 0))
-    block_size = 1024
-    
-    progress_bar = st.progress(0, text=f"Mengunduh {os.path.basename(destination)}...")
-    
-    with open(destination, 'wb') as f:
-        bytes_downloaded = 0
-        for chunk in response.iter_content(block_size):
-            if chunk:
-                bytes_downloaded += len(chunk)
-                f.write(chunk)
-                progress_percentage = int((bytes_downloaded / total_size) * 100) if total_size > 0 else 0
-                progress_bar.progress(progress_percentage, text=f"Mengunduh {os.path.basename(destination)} ({progress_percentage}%)")
-
-    progress_bar.empty()
-
-# --- KONFIGURASI DAN LOAD MODEL (ID SUDAH BENAR) ---
+# --- KONFIGURASI DAN LOAD MODEL (TIDAK BERUBAH) ---
 @st.cache_resource
 def load_resources():
+    # ID File dari Google Drive Anda
     drive_files = {
         'svm_model_demo.joblib': '1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN',
         'knn_model_demo.joblib': '1y4BRHzMyMmk636n0hjJNLea_AozcQx_4',
         'rf_model_demo.joblib': '1hwozTv5xtMF_M86FIStd2dE7XYx01JIM',
         'bert_model_demo.zip': '1DNXDvX3I7r-mqspkdnCnx4IiLinjNWUl'
     }
-    bert_path = 'bert_model_demo'
     
+    bert_path = 'bert_model_demo'
+
+    # Download dan unzip model BERT jika folder belum ada
     if not os.path.exists(bert_path):
         zip_file_name = 'bert_model_demo.zip'
         with st.spinner(f'Mengunduh & mengekstrak {zip_file_name}... Ini hanya dilakukan sekali.'):
@@ -63,6 +38,7 @@ def load_resources():
                 zip_ref.extractall('.')
             os.remove(zip_file_name)
             
+    # Download model ML lainnya jika belum ada
     for filename, file_id in drive_files.items():
         if filename.endswith('.joblib') and not os.path.exists(filename):
              with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
@@ -92,7 +68,7 @@ def load_resources():
     return { "svm": svm_model, "knn": knn_model, "rf": rf_model, "tokenizer": tokenizer, 
              "bert_model": bert_model, "stemmer": stemmer, "stopwords": indo_stopwords, 
              "slang_dict": normalisasi_dict }
-
+             
 # --- FUNGSI PREPROCESSING & FITUR (TIDAK BERUBAH) ---
 def clean_text(text):
     text = re.sub(r'http\S+|www.\S+', '', text); text = re.sub(r'\\d+', '', text)
