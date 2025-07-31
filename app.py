@@ -11,22 +11,25 @@ import os
 import zipfile
 import gdown
 
-# --- FUNGSI DOWNLOAD (TIDAK BERUBAH) ---
+# --- FUNGSI DOWNLOAD BARU MENGGUNAKAN GDOWN ---
 def download_file_from_google_drive(id, destination):
     url = f'https://drive.google.com/uc?id={id}'
     gdown.download(url, destination, quiet=False)
 
-# --- KONFIGURASI DAN LOAD MODEL (TIDAK BERUBAH) ---
+# --- KONFIGURASI DAN LOAD MODEL ---
 @st.cache_resource
 def load_resources():
+    # ID File dari Google Drive Anda
     drive_files = {
-        'svm_model_demo.joblib': '1wuGQRbl3LIEkwg93GLjiu-3u-KfzlQRN',
-        'knn_model_demo.joblib': '1y4BRHzMyMmk636n0hjJNLea_AozcQx_4',
-        'rf_model_demo.joblib': '1hwozTv5xtMF_M86FIStd2dE7XYx01JIM',
+        'svm_model_demo.joblib': '1Ty5M6N6IUUkXnWidpXDCIWBtuJHpe0__',
+        'knn_model_demo.joblib': '1l_0cOLQWb-FdlbnufoUrR7xMhe90i4N4',
+        'rf_model_demo.joblib': '1fmHBY97kslSx5xY6SX6ODbWGfzK7Cp9u',
         'bert_model_demo.zip': '1DNXDvX3I7r-mqspkdnCnx4IiLinjNWUl'
     }
+    
     bert_path = 'bert_model_demo'
 
+    # Download dan unzip model BERT jika folder belum ada
     if not os.path.exists(bert_path):
         zip_file_name = 'bert_model_demo.zip'
         with st.spinner(f'Mengunduh & mengekstrak {zip_file_name}... Ini hanya dilakukan sekali.'):
@@ -35,13 +38,18 @@ def load_resources():
                 zip_ref.extractall('.')
             os.remove(zip_file_name)
             
+    # Download model ML lainnya jika belum ada
     for filename, file_id in drive_files.items():
         if filename.endswith('.joblib') and not os.path.exists(filename):
              with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
                 download_file_from_google_drive(file_id, filename)
 
-    try: nltk.data.find('corpora/stopwords.zip')
-    except LookupError: nltk.download('stopwords')
+    # --- PERBAIKAN BAGIAN NLTK ---
+    try:
+        nltk.data.find('corpora/stopwords.zip')
+    except LookupError:
+        nltk.download('stopwords')
+    # -----------------------------
 
     svm_model = joblib.load('svm_model_demo.joblib')
     knn_model = joblib.load('knn_model_demo.joblib')
@@ -101,13 +109,12 @@ except Exception as e:
     st.error(f"Gagal memuat model. Pastikan ID Google Drive sudah benar dan file dapat diakses oleh 'Siapa saja yang memiliki link'. Error: {e}")
     st.stop()
 
-# --- PERUBAHAN DI SINI: MENAMBAHKAN PILIHAN MODEL ---
+# --- PILIHAN MODEL ---
 model_choice = st.selectbox(
     "Pilih model yang ingin Anda gunakan:",
-    # Urutkan berdasarkan performa terbaik
     ("Random Forest", "SVM", "KNN") 
 )
-# ----------------------------------------------------
+# --------------------
 
 user_input = st.text_area("Masukkan teks untuk dianalisis di sini:", height=150, placeholder="Contoh: Aksi demo mahasiswa hari ini berjalan dengan damai dan tertib...")
 
@@ -120,7 +127,7 @@ if st.button("Analisis Sentimen", type="primary"):
             
             text_embedding = get_bert_embedding(preprocessed_text, resources["tokenizer"], resources["bert_model"])
             
-            # --- PERUBAHAN DI SINI: PREDIKSI BERDASARKAN PILIHAN ---
+            # --- PREDIKSI BERDASARKAN PILIHAN ---
             prediction = None
             if model_choice == "Random Forest":
                 prediction = resources["rf"].predict(text_embedding)[0]
@@ -128,9 +135,9 @@ if st.button("Analisis Sentimen", type="primary"):
                 prediction = resources["svm"].predict(text_embedding)[0]
             elif model_choice == "KNN":
                 prediction = resources["knn"].predict(text_embedding)[0]
-            # --------------------------------------------------------
+            # -----------------------------------
 
-            # --- PERUBAHAN DI SINI: TAMPILKAN HANYA SATU HASIL ---
+            # --- TAMPILKAN HANYA SATU HASIL ---
             st.subheader("Hasil Analisis Sentimen:")
             
             if prediction:
@@ -139,7 +146,7 @@ if st.button("Analisis Sentimen", type="primary"):
                     st.success("Sentimen cenderung Positif 👍")
                 else:
                     st.error("Sentimen cenderung Negatif 👎")
-            # ----------------------------------------------------
+            # ---------------------------------
     else:
         st.warning("Mohon masukkan teks untuk dianalisis.")
 
