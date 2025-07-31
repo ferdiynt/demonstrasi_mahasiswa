@@ -1,7 +1,10 @@
-venv/
-.venv/
-__pycache__/
+# Abaikan file model dan zip
 *.joblib
+*.bin
 *.zip
+
+# Abaikan folder yang dibuat secara dinamis
 bert_model_demo/
-data/
+
+# Abaikan folder cache Python
+__pycache__/
