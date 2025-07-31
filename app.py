@@ -19,11 +19,11 @@ def download_file_from_google_drive(id, destination):
 # --- KONFIGURASI DAN LOAD MODEL ---
 @st.cache_resource
 def load_resources():
-    # ID File dari Google Drive Anda
+    # ID File BARU dari Google Drive Anda
     drive_files = {
-        'svm_model_demo.joblib': '1Ty5M6N6IUUkXnWidpXDCIWBtuJHpe0__',
-        'knn_model_demo.joblib': '1l_0cOLQWb-FdlbnufoUrR7xMhe90i4N4',
-        'rf_model_demo.joblib': '1fmHBY97kslSx5xY6SX6ODbWGfzK7Cp9u',
+        'svm_model_demo_v2.joblib': '1SYFrDHRp96Fa51BajwggaIY5ONytKLlN',
+        'knn_model_demo_v2.joblib': '1jhk0feNUrNA058WcOyo3Wpzh159EBZID',
+        'rf_model_demo_v2.joblib': '105xu-FQYHViUEmAcACJPaBwIO7CI8nhp',
         'bert_model_demo.zip': '1DNXDvX3I7r-mqspkdnCnx4IiLinjNWUl'
     }
     
@@ -38,7 +38,7 @@ def load_resources():
                 zip_ref.extractall('.')
             os.remove(zip_file_name)
             
-    # Download model ML lainnya jika belum ada
+    # Download model ML lainnya dengan nama baru jika belum ada
     for filename, file_id in drive_files.items():
         if filename.endswith('.joblib') and not os.path.exists(filename):
              with st.spinner(f'Mengunduh model {filename}... Ini hanya dilakukan sekali.'):
@@ -51,12 +51,15 @@ def load_resources():
         nltk.download('stopwords')
     # -----------------------------
 
-    svm_model = joblib.load('svm_model_demo.joblib')
-    knn_model = joblib.load('knn_model_demo.joblib')
-    rf_model = joblib.load('rf_model_demo.joblib')
+    # Load model dengan nama file baru
+    svm_model = joblib.load('svm_model_demo_v2.joblib')
+    knn_model = joblib.load('knn_model_demo_v2.joblib')
+    rf_model = joblib.load('rf_model_demo_v2.joblib')
+
     tokenizer = BertTokenizer.from_pretrained(os.path.join(bert_path, 'tokenizer'))
     bert_model = BertModel.from_pretrained(os.path.join(bert_path, 'model'))
     bert_model.eval()
+
     factory = StemmerFactory()
     stemmer = factory.create_stemmer()
     indo_stopwords = set(nltk.corpus.stopwords.words('indonesian'))
